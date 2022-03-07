@@ -3,11 +3,14 @@ import os
 import re
 import pickle
 
+from io import BytesIO
+from PIL import Image
 from annoy import AnnoyIndex
 from sklearn.decomposition import PCA
 import tensorflow_hub as hub
 import numpy as np
 import tensorflow as tf
+import urllib
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import requests
@@ -28,26 +31,27 @@ cors = CORS(app, resources={r'/api/*': {'origins': '*'}})
 ANNOY_INDEX = AnnoyIndex(256, 'angular')
 QID_TO_IDX = {}
 PCA256 = None
+MODEL = None
 IDX_TO_QID = {}
 K_MAX = 500  # maximum number of neighbors (even if submitted argument is larger)
-model_url = "https://tfhub.dev/tensorflow/efficientnet/b7/feature-vector/1"
+model_url = "https://tfhub.dev/google/imagenet/efficientnet_v2_imagenet21k_ft1k_b3/feature_vector/2"
 
-@app.route('/api/v1/outlinks', methods=['GET'])
+@app.route('/api/v1/outlinks', methods=['POST'])
 def get_neighbors():
     """Returns the Images based on the similarity with the given query image."""
     args = parse_args()
     if 'error' in args:
         return jsonify({'Error': args['error']})
     else:
-        qid_idx = QID_TO_IDX[args['qid']]
+        image = generate_image(args['data'])
+        embeds = generate_embeddings(image)
         results = []
-        for idx, dist in zip(*ANNOY_INDEX.get_nns_by_item(qid_idx, args['k'], include_distances=True)):
+        for idx, dist in zip(*ANNOY_INDEX.get_nns_by_vector(embeds, args['k'], include_distances=True)):
             sim = 1 - dist
-            if sim >= args['threshold']:  #  and idx != qid_idx
-                results.append({'qid':IDX_TO_QID[idx], 'score':sim})
+            if sim >= args['threshold']:
+                results.append({'id': idx, 'score': sim})
             else:
                 break
-        add_article_titles(args['lang'], results)
         return jsonify(results)
 
 @app.route('/api/v1/outlinks-interactive', methods=['GET'])
@@ -115,75 +119,61 @@ def parse_args():
     k_default = 10  # default number of neighbors
     k_min = 1
     try:
-        k = max(min(int(request.args.get('k')), K_MAX), k_min) + 1
+        k = max(min(int(request.get_json()['k']), K_MAX), k_min) + 1
     except Exception:
         k = k_default
 
     # seed qid
-    qid = request.args.get('qid').upper()
-    if not validate_qid_format(qid):
-        return {'error': "Error: poorly formatted 'qid' field. {0} does not match 'Q#...'".format(qid)}
-    if not validate_qid_model(qid):
-        return {'error': "Error: {0} is not included in the model".format(qid)}
+    url = request.get_json()['url']
+    try:
+        data = urllib.request.urlopen(url).read()
+    except Exception:
+        return {'error': "Error: URL({}) is not valid".format(url)}
 
     # threshold for similarity to include
     t_default = 0  # default minimum cosine similarity
     t_max = 1  # maximum cosine similarity threshold (even if submitted argument is larger)
     try:
-        threshold = min(float(request.args.get('threshold')), t_max)
+        threshold = min(float(request.get_json()['threshold']), t_max)
     except Exception:
         threshold = t_default
 
-    # target language
-    lang = request.args.get('lang', 'en').lower().replace('wiki', '')
-    if lang not in WIKIPEDIA_LANGUAGE_CODES:
-        lang = 'en'
-
     # pass arguments
     args = {
-        'qid': qid,
+        'url': url,
         'k': k,
+        'data': data,
         'threshold': threshold,
-        'lang': lang
-            }
+    }
     return args
 
-def validate_qid_format(qid):
-    return re.match('^Q[0-9]+$', qid)
+def generate_image(byte_string):
+    image = Image.open(BytesIO(byte_string))
+    image = image.resize((224, 224), Image.ANTIALIAS)
+    image = np.array(image)
+    if len(image.shape) == 2:
+        image = np.repeat(image[..., np.newaxis], 3, -1)
+    elif image.shape[-1] == 2:
+        image = np.dstack((image, np.mean(image, axis=(2,))))
+    else:
+        image = image[:, :, :3]
+    image = image / 255.0
+    return image
 
-def validate_qid_model(qid):
-    return qid in QID_TO_IDX
-
-def add_article_titles(lang, results, n_batch=50):
-    wiki = '{0}wiki'.format(lang)
-    api_url_base = 'https://wikidata.org/w/api.php'
-
-    qids = {r['qid']:idx for idx, r in enumerate(results, start=0)}
-    qid_list = list(qids.keys())
-    for i in range(0, len(qid_list), n_batch):
-        qid_batch = qid_list[i:i+n_batch]
-        params = {
-            'action':'wbgetentities',
-            'props':'sitelinks',
-            'format':'json',
-            'formatversion':2,
-            'sitefilter':wiki,
-            'ids':'|'.join(qid_batch)
-        }
-        response = requests.get(api_url_base, params=params)
-        sitelinks = response.json()
-        for qid in qid_batch:
-            # get title in selected wikis
-            qid_idx = qids[qid]
-            results[qid_idx]['title'] = sitelinks['entities'].get(qid, {}).get('sitelinks', {}).get(wiki, {}).get('title', '-')
+def generate_embeddings(image):
+    embeds = MODEL.predict(np.expand_dims(image, axis=0))
+    embeds = embeds.reshape(1, -1)
+    embeds = PCA256.transform(embeds).reshape(-1)
+    return embeds
 
 def load_model():
+    global MODEL
     os.environ["TFHUB_CACHE_DIR"] = os.path.join(os.curdir, 'resources', 'model')
-    model = tf.keras.Sequential([hub.KerasLayer(model_url, trainable=False)])
+    MODEL = tf.keras.Sequential([hub.KerasLayer(model_url, trainable=False)])
     print("Model Created")
-    model.build([None, 224, 224, 3])  # Batch input shape.
+    MODEL.build([None, 224, 224, 3])  # Batch input shape.
     # this will preload the model into Memory
-    _ = model.predict(np.ones(shape=(1, 224, 224, 3)))
+    _ = MODEL.predict(np.ones(shape=(1, 224, 224, 3)))
     print("Model Loaded into Memory")
 
 def load_similarity_index():
@@ -216,8 +206,8 @@ def load_similarity_index():
         ANNOY_INDEX.build(100)
         with open(qidmap_fp, 'wb') as fout:
             pickle.dump(QID_TO_IDX, fout)
-    IDX_TO_QID = {v:k for k,v in QID_TO_IDX.items()}
-    print("{0} QIDs in nearset neighbor index.".format(len(QID_TO_IDX)))
+    IDX_TO_QID = {v: k for k, v in QID_TO_IDX.items()}
+    print("{0} QIDs in nearset neighbor index.".format(ANNOY_INDEX.get_n_items()))
 
 application = app
 # FOR TESTING LOCALLY - SHOULD BE REMOVED
