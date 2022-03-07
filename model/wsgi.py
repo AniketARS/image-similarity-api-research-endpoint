@@ -4,6 +4,7 @@ import re
 import pickle
 
 from annoy import AnnoyIndex
+from sklearn.decomposition import PCA
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import requests
@@ -20,17 +21,16 @@ app.config.update(
 # Enable CORS for API endpoints
 cors = CORS(app, resources={r'/api/*': {'origins': '*'}})
 
-# fast-text model for making predictions
-ANNOY_INDEX = AnnoyIndex(50, 'angular')
+# efficientNetB3V2 model with PCA(256) for making predictions
+ANNOY_INDEX = AnnoyIndex(256, 'angular')
 QID_TO_IDX = {}
+PCA256 = None
 IDX_TO_QID = {}
 K_MAX = 500  # maximum number of neighbors (even if submitted argument is larger)
 
-WIKIPEDIA_LANGUAGE_CODES = {'aa', 'ab', 'ace', 'ady', 'af', 'ak', 'als', 'am', 'an', 'ang', 'ar', 'arc', 'ary', 'arz', 'as', 'ast', 'atj', 'av', 'avk', 'awa', 'ay', 'az', 'azb', 'ba', 'ban', 'bar', 'bat-smg', 'bcl', 'be', 'be-x-old', 'bg', 'bh', 'bi', 'bjn', 'bm', 'bn', 'bo', 'bpy', 'br', 'bs', 'bug', 'bxr', 'ca', 'cbk-zam', 'cdo', 'ce', 'ceb', 'ch', 'cho', 'chr', 'chy', 'ckb', 'co', 'cr', 'crh', 'cs', 'csb', 'cu', 'cv', 'cy', 'da', 'de', 'din', 'diq', 'dsb', 'dty', 'dv', 'dz', 'ee', 'el', 'eml', 'en', 'eo', 'es', 'et', 'eu', 'ext', 'fa', 'ff', 'fi', 'fiu-vro', 'fj', 'fo', 'fr', 'frp', 'frr', 'fur', 'fy', 'ga', 'gag', 'gan', 'gcr', 'gd', 'gl', 'glk', 'gn', 'gom', 'gor', 'got', 'gu', 'gv', 'ha', 'hak', 'haw', 'he', 'hi', 'hif', 'ho', 'hr', 'hsb', 'ht', 'hu', 'hy', 'hyw', 'hz', 'ia', 'id', 'ie', 'ig', 'ii', 'ik', 'ilo', 'inh', 'io', 'is', 'it', 'iu', 'ja', 'jam', 'jbo', 'jv', 'ka', 'kaa', 'kab', 'kbd', 'kbp', 'kg', 'ki', 'kj', 'kk', 'kl', 'km', 'kn', 'ko', 'koi', 'kr', 'krc', 'ks', 'ksh', 'ku', 'kv', 'kw', 'ky', 'la', 'lad', 'lb', 'lbe', 'lez', 'lfn', 'lg', 'li', 'lij', 'lld', 'lmo', 'ln', 'lo', 'lrc', 'lt', 'ltg', 'lv', 'mai', 'map-bms', 'mdf', 'mg', 'mh', 'mhr', 'mi', 'min', 'mk', 'ml', 'mn', 'mnw', 'mr', 'mrj', 'ms', 'mt', 'mus', 'mwl', 'my', 'myv', 'mzn', 'na', 'nah', 'nap', 'nds', 'nds-nl', 'ne', 'new', 'ng', 'nl', 'nn', 'no', 'nov', 'nqo', 'nrm', 'nso', 'nv', 'ny', 'oc', 'olo', 'om', 'or', 'os', 'pa', 'pag', 'pam', 'pap', 'pcd', 'pdc', 'pfl', 'pi', 'pih', 'pl', 'pms', 'pnb', 'pnt', 'ps', 'pt', 'qu', 'rm', 'rmy', 'rn', 'ro', 'roa-rup', 'roa-tara', 'ru', 'rue', 'rw', 'sa', 'sah', 'sat', 'sc', 'scn', 'sco', 'sd', 'se', 'sg', 'sh', 'shn', 'si', 'simple', 'sk', 'sl', 'sm', 'smn', 'sn', 'so', 'sq', 'sr', 'srn', 'ss', 'st', 'stq', 'su', 'sv', 'sw', 'szl', 'szy', 'ta', 'tcy', 'te', 'tet', 'tg', 'th', 'ti', 'tk', 'tl', 'tn', 'to', 'tpi', 'tr', 'ts', 'tt', 'tum', 'tw', 'ty', 'tyv', 'udm', 'ug', 'uk', 'ur', 'uz', 've', 'vec', 'vep', 'vi', 'vls', 'vo', 'wa', 'war', 'wo', 'wuu', 'xal', 'xh', 'xmf', 'yi', 'yo', 'za', 'zea', 'zh', 'zh-classical', 'zh-min-nan', 'zh-yue', 'zu'}
-
 @app.route('/api/v1/outlinks', methods=['GET'])
 def get_neighbors():
-    """Wikipedia-based topic modeling endpoint. Makes prediction based on outlinks associated with a Wikipedia article."""
+    """Returns the Images based on the similarity with the given query image."""
     args = parse_args()
     if 'error' in args:
         return jsonify({'Error': args['error']})
@@ -176,13 +176,17 @@ def add_article_titles(lang, results, n_batch=50):
 def load_similarity_index():
     global IDX_TO_QID
     global QID_TO_IDX
-    index_fp = os.path.join(__dir__, 'resources/embeddings.ann')
+    global PCA256
+    index_fp = os.path.join(os.curdir, 'resources', 'embeddings.ann')
+    pca256_fp = os.path.join(os.curdir, 'resources', 'pca256.pkl')
     qidmap_fp = os.path.join(__dir__, 'resources/qid_to_idx.pickle')
     if os.path.exists(index_fp):
         print("Using pre-built ANNOY index")
         ANNOY_INDEX.load(index_fp)
-        with open(qidmap_fp, 'rb') as fin:
-            QID_TO_IDX = pickle.load(fin)
+        with open(pca256_fp, 'rb') as fin:
+            PCA256 = pickle.load(fin)
+        # with open(qidmap_fp, 'rb') as fin:
+        #     QID_TO_IDX = pickle.load(fin)
     else:
         print("Builing ANNOY index")
         ANNOY_INDEX.on_disk_build(index_fp)
@@ -196,7 +200,7 @@ def load_similarity_index():
                 if idx + 1 % 1000000 == 0:
                     print("{0} embeddings loaded.".format(idx))
         print("Building AnnoyIndex with 25 trees.")
-        ANNOY_INDEX.build(25)
+        ANNOY_INDEX.build(100)
         with open(qidmap_fp, 'wb') as fout:
             pickle.dump(QID_TO_IDX, fout)
     IDX_TO_QID = {v:k for k,v in QID_TO_IDX.items()}
