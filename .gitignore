@@ -1,3 +1,2 @@
 .idea/
-resources/embeddings.ann
-resources/pca256.pkl
+resources/*

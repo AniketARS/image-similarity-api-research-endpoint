@@ -5,6 +5,9 @@ import pickle
 
 from annoy import AnnoyIndex
 from sklearn.decomposition import PCA
+import tensorflow_hub as hub
+import numpy as np
+import tensorflow as tf
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import requests
@@ -27,6 +30,7 @@ QID_TO_IDX = {}
 PCA256 = None
 IDX_TO_QID = {}
 K_MAX = 500  # maximum number of neighbors (even if submitted argument is larger)
+model_url = "https://tfhub.dev/tensorflow/efficientnet/b7/feature-vector/1"
 
 @app.route('/api/v1/outlinks', methods=['GET'])
 def get_neighbors():
@@ -173,6 +177,15 @@ def add_article_titles(lang, results, n_batch=50):
             qid_idx = qids[qid]
             results[qid_idx]['title'] = sitelinks['entities'].get(qid, {}).get('sitelinks', {}).get(wiki, {}).get('title', '-')
 
+def load_model():
+    os.environ["TFHUB_CACHE_DIR"] = os.path.join(os.curdir, 'resources', 'model')
+    model = tf.keras.Sequential([hub.KerasLayer(model_url, trainable=False)])
+    print("Model Created")
+    model.build([None, 224, 224, 3])  # Batch input shape.
+    # this will preload the model into Memory
+    _ = model.predict(np.ones(shape=(1, 224, 224, 3)))
+    print("Model Loaded into Memory")
+
 def load_similarity_index():
     global IDX_TO_QID
     global QID_TO_IDX
@@ -207,7 +220,10 @@ def load_similarity_index():
     print("{0} QIDs in nearset neighbor index.".format(len(QID_TO_IDX)))
 
 application = app
+# FOR TESTING LOCALLY - SHOULD BE REMOVED
+tf.config.set_visible_devices([], 'GPU')
 load_similarity_index()
+load_model()
 
 if __name__ == '__main__':
     application.run()
