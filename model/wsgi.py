@@ -11,7 +11,7 @@ import tensorflow_hub as hub
 import numpy as np
 import tensorflow as tf
 import urllib
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
 import yaml
@@ -30,9 +30,9 @@ cors = CORS(app, resources={r'/api/*': {'origins': '*'}})
 # efficientNetB3V2 model with PCA(256) for making predictions
 ANNOY_INDEX = AnnoyIndex(256, 'angular')
 QID_TO_IDX = {}
-PCA256 = None
+PCA256 = PCA(n_components=256)
 MODEL = None
-IDX_TO_QID = {}
+IDX_TO_URL = {}
 K_MAX = 500  # maximum number of neighbors (even if submitted argument is larger)
 model_url = "https://tfhub.dev/google/imagenet/efficientnet_v2_imagenet21k_ft1k_b3/feature_vector/2"
 
@@ -53,66 +53,6 @@ def get_neighbors():
             else:
                 break
         return jsonify(results)
-
-@app.route('/api/v1/outlinks-interactive', methods=['GET'])
-def get_neighbors_interactive():
-    """Interactive Wikipedia-based topic modeling endpoint. Takes positive/negative constraints on list."""
-    args = parse_args_interactive()
-    if 'error' in args:
-        return jsonify({'Error': args['error']})
-    else:
-        search_k = int(args['k'] * ANNOY_INDEX.get_n_trees() / min(len(args['pos']) + len(args['neg']), ANNOY_INDEX.get_n_trees()))
-        neg = {}
-        for qid in args['neg']:
-            qid_idx = QID_TO_IDX[qid]
-            for rank, idx in enumerate(ANNOY_INDEX.get_nns_by_item(qid_idx, args['k'], search_k=search_k, include_distances=False)):
-                if idx == qid_idx:
-                    continue
-                qid_nei = IDX_TO_QID[idx]
-                if qid_nei not in args['pos'] and qid_nei not in args['skip']:
-                    if qid_nei not in neg:
-                        neg[qid_nei] = []
-                    neg[qid_nei].append(args['k'] - rank)
-        # average inverse rank -- missing ranks then default to 0 which makes sense
-        # more highly ranked items -> larger numbers
-        for qid in neg:
-            neg[qid] = int(sum(neg[qid]) / len(args['neg']))
-
-        pos = {}
-        avg_min_sim = 0
-        for qid in args['pos']:
-            qid_idx = QID_TO_IDX[qid]
-            # I bump args['k'] because in practice I find that the result sets are slightly too small
-            # This is due to filters and the impreciseness of the search trees used by Annoy
-            indices, distances = ANNOY_INDEX.get_nns_by_item(qid_idx, args['k']+10, search_k=search_k, include_distances=True)
-            avg_min_sim += distances[-1]
-            for i, idx in enumerate(indices):
-                qid_nei = IDX_TO_QID[idx]
-                try:
-                    sim = 1 - distances[i + neg.get(qid_nei, 0)]
-                except IndexError:
-                    sim = 1 - distances[-1]
-                if qid_nei not in args['neg'] and qid_nei not in args['skip'] and qid_nei not in args['pos']:
-                    if qid_nei not in pos:
-                        pos[qid_nei] = []
-                    pos[qid_nei].append(sim)
-        avg_min_sim = avg_min_sim / len(args['pos'])
-        for qid in pos:
-            pos[qid] = (sum(pos[qid]) + (avg_min_sim * (len(args['pos']) - len(pos[qid])))) / len(args['pos'])
-
-        results = [{'qid':qid, 'score':score} for qid,score in pos.items() if score >= args['threshold']]
-        results = sorted(results, key=lambda x:x['score'], reverse=True)[:args['k']]
-        add_article_titles(args['lang'], results)
-        return jsonify(results)
-
-def parse_args_interactive():
-    args = parse_args()
-    if 'error' not in args:
-        args['k'] += 1
-        args['pos'] = [args['qid']] + [qid for qid in request.args.get('pos','').upper().split('|') if validate_qid_model(qid)]
-        args['neg'] = [qid for qid in request.args.get('neg', '').upper().split('|') if validate_qid_model(qid)]
-        args['skip'] = [qid for qid in request.args.get('skip', '').upper().split('|') if validate_qid_model(qid)]
-    return args
 
 def parse_args():
     # number of neighbors
@@ -177,8 +117,7 @@ def load_model():
     print("Model Loaded into Memory")
 
 def load_similarity_index():
-    global IDX_TO_QID
-    global QID_TO_IDX
+    global IDX_TO_URL
     global PCA256
     index_fp = os.path.join(os.curdir, 'resources', 'embeddings.ann')
     pca256_fp = os.path.join(os.curdir, 'resources', 'pca256.pkl')
@@ -206,7 +145,6 @@ def load_similarity_index():
         ANNOY_INDEX.build(100)
         with open(qidmap_fp, 'wb') as fout:
             pickle.dump(QID_TO_IDX, fout)
-    IDX_TO_QID = {v: k for k, v in QID_TO_IDX.items()}
     print("{0} QIDs in nearset neighbor index.".format(ANNOY_INDEX.get_n_items()))
 
 application = app
