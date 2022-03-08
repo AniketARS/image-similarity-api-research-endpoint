@@ -29,7 +29,6 @@ cors = CORS(app, resources={r'/api/*': {'origins': '*'}})
 
 # efficientNetB3V2 model with PCA(256) for making predictions
 ANNOY_INDEX = AnnoyIndex(256, 'angular')
-QID_TO_IDX = {}
 PCA256 = PCA(n_components=256)
 MODEL = None
 IDX_TO_URL = {}
@@ -49,7 +48,7 @@ def get_neighbors():
         for idx, dist in zip(*ANNOY_INDEX.get_nns_by_vector(embeds, args['k'], include_distances=True)):
             sim = 1 - dist
             if sim >= args['threshold']:
-                results.append({'id': idx, 'score': sim})
+                results.append({'url': IDX_TO_URL[idx], 'score': sim})
             else:
                 break
         return jsonify(results)
@@ -121,31 +120,18 @@ def load_similarity_index():
     global PCA256
     index_fp = os.path.join(os.curdir, 'resources', 'embeddings.ann')
     pca256_fp = os.path.join(os.curdir, 'resources', 'pca256.pkl')
-    qidmap_fp = os.path.join(__dir__, 'resources/qid_to_idx.pickle')
-    if os.path.exists(index_fp):
-        print("Using pre-built ANNOY index")
-        ANNOY_INDEX.load(index_fp)
-        with open(pca256_fp, 'rb') as fin:
-            PCA256 = pickle.load(fin)
-        # with open(qidmap_fp, 'rb') as fin:
-        #     QID_TO_IDX = pickle.load(fin)
-    else:
-        print("Builing ANNOY index")
-        ANNOY_INDEX.on_disk_build(index_fp)
-        with bz2.open(os.path.join(__dir__, 'resources/embeddings.tsv.bz2'), 'rt') as fin:
-            for idx, line in enumerate(fin, start=0):
-                line = line.strip().split('\t')
-                qid = line[0]
-                QID_TO_IDX[qid] = idx
-                emb = [float(d) for d in line[1].split()]
-                ANNOY_INDEX.add_item(idx, emb)
-                if idx + 1 % 1000000 == 0:
-                    print("{0} embeddings loaded.".format(idx))
-        print("Building AnnoyIndex with 25 trees.")
-        ANNOY_INDEX.build(100)
-        with open(qidmap_fp, 'wb') as fout:
-            pickle.dump(QID_TO_IDX, fout)
-    print("{0} QIDs in nearset neighbor index.".format(ANNOY_INDEX.get_n_items()))
+    idxmap_fp = os.path.join(os.curdir, 'resources', 'id2url.pkl')
+
+    print("Using pre-built ANNOY index")
+    ANNOY_INDEX.load(index_fp)
+    with open(pca256_fp, 'rb') as fin:
+        PCA256 = pickle.load(fin)
+    print("Loaded PCA")
+    with open(idxmap_fp, 'rb') as fin:
+        IDX_TO_URL = pickle.load(fin)
+    print("Loaded IDX_TO_URL")
+
+    print("{0} IDs in nearset neighbor index.".format(ANNOY_INDEX.get_n_items()))
 
 application = app
 # FOR TESTING LOCALLY - SHOULD BE REMOVED
