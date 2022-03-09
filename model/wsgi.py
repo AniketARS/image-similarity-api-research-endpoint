@@ -68,8 +68,7 @@ def parse_args():
     print(url)
     try:
         data = urllib.request.urlopen(url).read()
-    except Exception as e:
-        print(e)
+    except Exception:
         return {'error': "Error: URL({}) is not valid".format(url)}
 
     # threshold for similarity to include
