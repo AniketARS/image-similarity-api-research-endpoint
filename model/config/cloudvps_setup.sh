@@ -5,7 +5,9 @@
 APP_LBL='api-endpoint'  # descriptive label for endpoint-related directories
 REPO_LBL='similaritymodel'  # directory where repo code will go
 GIT_CLONE_HTTPS='https://github.com/AniketARS/image-similarity-api-research-endpoint'  # for `git clone`
-MODEL_WGET='https://ndownloader.figshare.com/files/<file-number>'  # model binary -- ndownloader.figshare is a good host
+MODEL_WGET='https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/embeddings.ann'  # model binary
+IDX2URL_WGET = 'https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/id2url.pkl'
+PCA256_WGET = 'https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/pca256.pkl'
 
 ETC_PATH="/etc/${APP_LBL}"  # app config info, scripts, ML models, etc.
 SRV_PATH="/srv/${APP_LBL}"  # application resources for serving endpoint
@@ -53,7 +55,7 @@ echo "Cloning repositories..."
 
 # The simpler process is to just install dependencies per a requirements.txt file
 # With updates, however, the packages could change, leading to unexpected behavior or errors
-git clone --branch content-similarity ${GIT_CLONE_HTTPS} ${TMP_PATH}/${REPO_LBL}
+git clone --branch image-similarity ${GIT_CLONE_HTTPS} ${TMP_PATH}/${REPO_LBL}
 
 echo "Installing repositories..."
 pip install wheel
@@ -68,9 +70,15 @@ pip install -r ${TMP_PATH}/${REPO_LBL}/requirements.txt
 # ${TMP_PATH}/node_modules/bower/bin/bower install --allow-root ${TMP_PATH}/recommendation-api/recommendation/web/static/bower.json
 
 echo "Downloading model, hang on..."
-#cd ${TMP_PATH}
-#wget -O model.bin ${MODEL_WGET}
-mv embeddings.tsv.bz2 ${ETC_PATH}/resources
+
+wget -O embeddings.ann ${MODEL_WGET}
+mv embeddings.ann ${ETC_PATH}/resources
+
+wget -O id2url.pkl ${IDX2URL_WGET}
+mv id2url.pkl ${ETC_PATH}/resources
+
+wget -O pca256.pkl ${PCA256_WGET}
+mv pca256.pkl ${ETC_PATH}/resources
 
 echo "Setting up ownership..."  # makes www-data (how nginx is run) owner + group for all data etc.
 chown -R www-data:www-data ${ETC_PATH}

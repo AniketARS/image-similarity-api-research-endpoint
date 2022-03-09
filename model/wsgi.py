@@ -13,7 +13,7 @@ import tensorflow as tf
 import urllib
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import requests
+import hashlib
 import yaml
 
 app = Flask(__name__)
@@ -35,7 +35,7 @@ IDX_TO_URL = {}
 K_MAX = 500  # maximum number of neighbors (even if submitted argument is larger)
 model_url = "https://tfhub.dev/google/imagenet/efficientnet_v2_imagenet21k_ft1k_b3/feature_vector/2"
 
-@app.route('/api/v1/outlinks', methods=['POST'])
+@app.route('/api/v1/similar-images', methods=['GET'])
 def get_neighbors():
     """Returns the Images based on the similarity with the given query image."""
     args = parse_args()
@@ -58,12 +58,14 @@ def parse_args():
     k_default = 10  # default number of neighbors
     k_min = 1
     try:
-        k = max(min(int(request.get_json()['k']), K_MAX), k_min) + 1
+        k = max(min(int(request.args.get('k')), K_MAX), k_min) + 1
     except Exception:
         k = k_default
 
     # seed qid
-    url = request.get_json()['url']
+    image_name = request.args.get('image_name')
+    url = generate_url(image_name)
+    print(url)
     try:
         data = urllib.request.urlopen(url).read()
     except Exception:
@@ -73,7 +75,7 @@ def parse_args():
     t_default = 0  # default minimum cosine similarity
     t_max = 1  # maximum cosine similarity threshold (even if submitted argument is larger)
     try:
-        threshold = min(float(request.get_json()['threshold']), t_max)
+        threshold = min(float(request.args.get('threshold')), t_max)
     except Exception:
         threshold = t_default
 
@@ -85,6 +87,14 @@ def parse_args():
         'threshold': threshold,
     }
     return args
+
+def generate_url(image_name):
+    m = hashlib.md5()
+    m.update(image_name.encode('utf-8'))
+    md5sum = m.hexdigest()
+    quoted_name = urllib.parse.quote(image_name)
+    url = "https://upload.wikimedia.org/wikipedia/commons/{}/{}/{}".format(md5sum[:1], md5sum[:2], quoted_name)
+    return url
 
 def generate_image(byte_string):
     image = Image.open(BytesIO(byte_string))
