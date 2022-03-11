@@ -59,6 +59,8 @@ git clone --branch image-similarity ${GIT_CLONE_HTTPS} ${TMP_PATH}/${REPO_LBL}
 
 echo "Installing repositories..."
 pip install wheel
+pip install Cython==0.29.28
+pip install numpy==1.21.5
 pip install -r ${TMP_PATH}/${REPO_LBL}/requirements.txt
 
 # If UI included, consider the following for managing JS dependencies:
