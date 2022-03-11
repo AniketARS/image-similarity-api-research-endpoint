@@ -72,12 +72,11 @@ pip install -r ${TMP_PATH}/${REPO_LBL}/requirements.txt
 echo "Downloading model, hang on..."
 
 wget -O embeddings.ann ${MODEL_WGET}
-mv embeddings.ann ${ETC_PATH}/resources
-
 wget -O id2url.pkl ${IDX2URL_WGET}
-mv id2url.pkl ${ETC_PATH}/resources
-
 wget -O pca256.pkl ${PCA256_WGET}
+
+mv embeddings.ann ${ETC_PATH}/resources
+mv id2url.pkl ${ETC_PATH}/resources
 mv pca256.pkl ${ETC_PATH}/resources
 
 echo "Setting up ownership..."  # makes www-data (how nginx is run) owner + group for all data etc.
