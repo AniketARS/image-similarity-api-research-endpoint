@@ -6,8 +6,8 @@ APP_LBL='api-endpoint'  # descriptive label for endpoint-related directories
 REPO_LBL='similaritymodel'  # directory where repo code will go
 GIT_CLONE_HTTPS='https://github.com/AniketARS/image-similarity-api-research-endpoint'  # for `git clone`
 MODEL_WGET='https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/embeddings.ann'  # model binary
-IDX2URL_WGET = 'https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/id2url.pkl'
-PCA256_WGET = 'https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/pca256.pkl'
+IDX2URL_WGET='https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/id2url.pkl'
+PCA256_WGET='https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/pca256.pkl'
 
 ETC_PATH="/etc/${APP_LBL}"  # app config info, scripts, ML models, etc.
 SRV_PATH="/srv/${APP_LBL}"  # application resources for serving endpoint
