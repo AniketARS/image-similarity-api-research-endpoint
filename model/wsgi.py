@@ -144,7 +144,7 @@ def load_similarity_index():
     print("{0} IDs in nearset neighbor index.".format(ANNOY_INDEX.get_n_items()))
 
 application = app
-# FOR TESTING LOCALLY - SHOULD BE REMOVED
+# FOR DISABLING THE GPU USE (IN CASE ANY)
 tf.config.set_visible_devices([], 'GPU')
 load_similarity_index()
 load_model()
