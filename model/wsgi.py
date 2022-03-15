@@ -43,7 +43,9 @@ def get_neighbors():
         return jsonify({'Error': args['error']})
     else:
         image = generate_image(args['data'])
+        print("Generated Image")
         embeds = generate_embeddings(image)
+        print("Generated Embeddings")
         results = []
         for idx, dist in zip(*ANNOY_INDEX.get_nns_by_vector(embeds, args['k'], include_distances=True)):
             sim = 1 - dist
@@ -51,6 +53,7 @@ def get_neighbors():
                 results.append({'url': IDX_TO_URL[idx], 'score': sim})
             else:
                 break
+        print("Returning Results")
         return jsonify(results)
 
 def parse_args():
@@ -86,6 +89,7 @@ def parse_args():
         'data': data,
         'threshold': threshold,
     }
+    printf("Parsed args successfully..")
     return args
 
 def generate_url(image_name):
