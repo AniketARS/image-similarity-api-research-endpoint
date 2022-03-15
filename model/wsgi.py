@@ -89,7 +89,7 @@ def parse_args():
         'data': data,
         'threshold': threshold,
     }
-    printf("Parsed args successfully..")
+    print("Parsed args successfully..")
     return args
 
 def generate_url(image_name):
