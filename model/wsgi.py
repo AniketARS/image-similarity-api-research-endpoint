@@ -121,8 +121,7 @@ def generate_embeddings(image):
 
 def load_model():
     global MODEL
-    os.environ["TFHUB_CACHE_DIR"] = os.path.join(os.curdir, 'resources', 'model')
-    MODEL = tf.keras.Sequential([hub.KerasLayer(model_url, trainable=False)])
+    MODEL = tf.keras.Sequential([hub.KerasLayer(os.path.join(__dir__, 'resources', 'model'), trainable=False)])
     print("Model Created")
     MODEL.build([None, 224, 224, 3])  # Batch input shape.
     # this will preload the model into Memory
