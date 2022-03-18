@@ -115,8 +115,10 @@ def generate_image(byte_string):
 
 def generate_embeddings(image):
     embeds = MODEL.predict(np.expand_dims(image, axis=0))
+    print("Got Embeddings..")
     embeds = embeds.reshape(1, -1)
     embeds = PCA256.transform(embeds).reshape(-1)
+    print("Applied PCA..")
     return embeds
 
 def load_model():
