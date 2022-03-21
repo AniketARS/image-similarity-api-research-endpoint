@@ -5,7 +5,8 @@
 APP_LBL='api-endpoint'  # descriptive label for endpoint-related directories
 REPO_LBL='similaritymodel'  # directory where repo code will go
 GIT_CLONE_HTTPS='https://github.com/AniketARS/image-similarity-api-research-endpoint'  # for `git clone`
-MODEL_WGET='https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/embeddings.ann'  # model binary
+MODEL_WGET='https://tfhub.dev/google/imagenet/efficientnet_v2_imagenet21k_ft1k_b3/feature_vector/2?tf-hub-format=compressed'
+RECOMM_WGET='https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/embeddings.ann'  # model binary
 IDX2URL_WGET='https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/id2url.pkl'
 PCA256_WGET='https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/pca256.pkl'
 
@@ -33,6 +34,8 @@ mkdir -p ${TMP_PATH}
 mkdir -p ${SRV_PATH}/sock
 mkdir -p ${ETC_PATH}
 mkdir -p ${ETC_PATH}/resources
+mkdir -p ${ETC_PATH}/resources/efficient_net_b3_v2
+mkdir -p ${ETC_PATH}/resources/efficient_net_b3_v2/1
 mkdir -p ${LOG_PATH}
 mkdir -p ${LIB_PATH}
 
@@ -73,9 +76,13 @@ pip install -r ${TMP_PATH}/${REPO_LBL}/requirements.txt
 
 echo "Downloading model, hang on..."
 
-wget -O embeddings.ann ${MODEL_WGET}
+wget -O model.tar.gz ${MODEL_WGET}
+wget -O embeddings.ann ${RECOMM_WGET}
 wget -O id2url.pkl ${IDX2URL_WGET}
 wget -O pca256.pkl ${PCA256_WGET}
+
+tar -xzf model.tar.gz -C ${ETC_PATH}/resources/efficient_net_b3_v2/1
+rm model.tar.gz
 
 mv embeddings.ann ${ETC_PATH}/resources
 mv id2url.pkl ${ETC_PATH}/resources
@@ -98,10 +105,13 @@ if [[ -f "/etc/nginx/sites-enabled/model" ]]; then
 fi
 ln -s /etc/nginx/sites-available/model /etc/nginx/sites-enabled/
 cp ${ETC_PATH}/model.service /etc/systemd/system/
+cp ${ETC_PATH}/tensorflow.service /etc/systemd/system/
 
 echo "Enabling and starting services..."
 systemctl enable model.service  # uwsgi starts when server starts up
+systemctl enable tensorflow.service # tensorflow serving server starts
 systemctl daemon-reload  # refresh state
 
 systemctl restart model.service  # start up uwsgi
+systemctl restart tensorflow.service # start up tensorflow serving
 systemctl restart nginx  # start up nginx
