@@ -1,9 +1,10 @@
-import bz2
+import json
 import os
-import re
 import pickle
 
 from io import BytesIO
+
+import requests
 from PIL import Image
 from annoy import AnnoyIndex
 from sklearn.decomposition import PCA
@@ -114,28 +115,23 @@ def generate_image(byte_string):
     return image
 
 def generate_embeddings(image):
-    embeds = MODEL.predict(np.expand_dims(image, axis=0))
+    headers = {"content-type": "application/json"}
+    payload = json.dumps({"signature_name": "serving_default", "instances": [image.tolist()]})
+    result = requests.post('http://localhost:8501/v1/models/efficient_net_b3_v2:predict',
+                           data=payload, headers=headers)
+    embeds = json.loads(result.content.decode('utf-8'))['predictions']
     print("Got Embeddings..")
-    embeds = embeds.reshape(1, -1)
     embeds = PCA256.transform(embeds).reshape(-1)
     print("Applied PCA..")
     return embeds
 
-def load_model():
-    global MODEL
-    MODEL = tf.keras.Sequential([hub.KerasLayer(os.path.join(__dir__, 'resources', 'model'), trainable=False)])
-    print("Model Created")
-    MODEL.build([None, 224, 224, 3])  # Batch input shape.
-    # this will preload the model into Memory
-    _ = MODEL.predict(np.ones(shape=(1, 224, 224, 3)))
-    print("Model Loaded into Memory")
-
 def load_similarity_index():
     global IDX_TO_URL
     global PCA256
-    index_fp = os.path.join(__dir__, 'resources', 'embeddings.ann')
-    pca256_fp = os.path.join(__dir__, 'resources', 'pca256.pkl')
-    idxmap_fp = os.path.join(__dir__, 'resources', 'id2url.pkl')
+    # TODO: change the path for server
+    index_fp = os.path.join(os.curdir, 'resources', 'embeddings.ann')
+    pca256_fp = os.path.join(os.curdir, 'resources', 'pca256.pkl')
+    idxmap_fp = os.path.join(os.curdir, 'resources', 'id2url.pkl')
 
     print("Using pre-built ANNOY index")
     ANNOY_INDEX.load(index_fp)
@@ -152,7 +148,6 @@ application = app
 # FOR DISABLING THE GPU USE (IN CASE ANY)
 tf.config.set_visible_devices([], 'GPU')
 load_similarity_index()
-load_model()
 
 if __name__ == '__main__':
     application.run()
