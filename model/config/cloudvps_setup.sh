@@ -17,6 +17,8 @@ LOG_PATH="/var/log/uwsgi"  # application log data
 LIB_PATH="/var/lib/${APP_LBL}"  # where virtualenv will sit
 
 echo "Updating the system..."
+echo "deb [arch=amd64] http://storage.googleapis.com/tensorflow-serving-apt stable tensorflow-model-server tensorflow-model-server-universal" | sudo tee /etc/apt/sources.list.d/tensorflow-serving.list && \
+curl https://storage.googleapis.com/tensorflow-serving-apt/tensorflow-serving.release.pub.gpg | sudo apt-key add -
 apt-get update
 apt-get install -y build-essential  # gcc (c++ compiler) necessary for fasttext
 apt-get install -y nginx  # handles incoming requests, load balances, and passes to uWSGI to be fulfilled
@@ -26,6 +28,7 @@ apt-get install -y python3-venv  # for building virtualenv
 apt-get install -y python3-dev  # necessary for fasttext
 apt-get install -y uwsgi
 apt-get install -y uwsgi-plugin-python3
+apt-get install -y tensorflow-model-server
 # potentially add: apt-get install -y git python3 libpython3.7 python3-setuptools
 
 echo "Setting up paths..."
