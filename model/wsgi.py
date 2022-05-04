@@ -74,8 +74,7 @@ def parse_args(for_name=True):
         k = k_default
 
     # seed qid
-    image_name = request.args.get('image_name')
-    print(image_name)
+    image_name = request.args.get('image_name') if for_name else ''
     url = generate_url(image_name) if for_name else request.get_json()['url']
     print(url)
     try:
