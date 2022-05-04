@@ -8,9 +8,7 @@ import requests
 from PIL import Image
 from annoy import AnnoyIndex
 from sklearn.decomposition import PCA
-import tensorflow_hub as hub
 import numpy as np
-import tensorflow as tf
 import urllib
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -31,15 +29,23 @@ cors = CORS(app, resources={r'/api/*': {'origins': '*'}})
 # efficientNetB3V2 model with PCA(256) for making predictions
 ANNOY_INDEX = AnnoyIndex(256, 'angular')
 PCA256 = PCA(n_components=256)
-MODEL = None
 IDX_TO_URL = {}
 K_MAX = 500  # maximum number of neighbors (even if submitted argument is larger)
-model_url = "https://tfhub.dev/google/imagenet/efficientnet_v2_imagenet21k_ft1k_b3/feature_vector/2"
 
 @app.route('/api/v1/similar-images', methods=['GET'])
-def get_neighbors():
+def get_neighbors_by_name():
     """Returns the Images based on the similarity with the given query image."""
     args = parse_args()
+    return get_neighbors(args)
+
+@app.route('/api/v1/similar-images-url', methods=['POST'])
+def get_neighbors_by_url():
+    """Returns the Images based on the similarity with the given query url."""
+    args = parse_args(for_name=False)
+    return get_neighbors(args)
+
+
+def get_neighbors(args):
     if 'error' in args:
         return jsonify({'Error': args['error']})
     else:
@@ -57,7 +63,8 @@ def get_neighbors():
         print("Returning Results")
         return jsonify(results)
 
-def parse_args():
+
+def parse_args(for_name=True):
     # number of neighbors
     k_default = 10  # default number of neighbors
     k_min = 1
@@ -68,7 +75,8 @@ def parse_args():
 
     # seed qid
     image_name = request.args.get('image_name')
-    url = generate_url(image_name)
+    print(image_name)
+    url = generate_url(image_name) if for_name else request.get_json()['url']
     print(url)
     try:
         data = urllib.request.urlopen(url).read()
@@ -144,8 +152,6 @@ def load_similarity_index():
     print("{0} IDs in nearset neighbor index.".format(ANNOY_INDEX.get_n_items()))
 
 application = app
-# FOR DISABLING THE GPU USE (IN CASE ANY)
-tf.config.set_visible_devices([], 'GPU')
 load_similarity_index()
 
 if __name__ == '__main__':
