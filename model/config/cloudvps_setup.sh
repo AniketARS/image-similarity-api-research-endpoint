@@ -88,8 +88,8 @@ tar -xzf model.tar.gz -C ${ETC_PATH}/resources/efficient_net_b3_v2/1
 rm model.tar.gz
 
 # mv embeddings.ann ${ETC_PATH}/resources
-mv id2url.pkl ${ETC_PATH}/resources
-mv pca256.pkl ${ETC_PATH}/resources
+cp idx2url.pkl ${ETC_PATH}/resources
+cp pca256.pkl ${ETC_PATH}/resources
 
 echo "Setting up ownership..."  # makes www-data (how nginx is run) owner + group for all data etc.
 chown -R www-data:www-data ${ETC_PATH}
