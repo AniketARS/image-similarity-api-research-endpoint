@@ -137,7 +137,7 @@ def load_similarity_index():
     global PCA256
     index_fp = os.path.join('/', 'extrastorage', 'data', 'tree.cnn')
     pca256_fp = os.path.join(os.curdir, 'resources', 'pca256.pkl')
-    idxmap_fp = os.path.join(os.curdir, 'resources', 'id2url.pkl')
+    idxmap_fp = os.path.join(os.curdir, 'resources', 'idx2url.pkl')
 
     print("Using pre-built ANNOY index")
     ANNOY_INDEX.load(index_fp)
