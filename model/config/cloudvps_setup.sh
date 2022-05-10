@@ -6,9 +6,6 @@ APP_LBL='api-endpoint'  # descriptive label for endpoint-related directories
 REPO_LBL='similaritymodel'  # directory where repo code will go
 GIT_CLONE_HTTPS='https://github.com/AniketARS/image-similarity-api-research-endpoint'  # for `git clone`
 MODEL_WGET='https://tfhub.dev/google/imagenet/efficientnet_v2_imagenet21k_ft1k_b3/feature_vector/2?tf-hub-format=compressed'
-# RECOMM_WGET='https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/embeddings.ann'  # model binary
-# IDX2URL_WGET='https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/id2url.pkl'
-# PCA256_WGET='https://analytics.wikimedia.org/published/datasets/one-off/aniketars/image-similarity/pca256.pkl'
 
 ETC_PATH="/etc/${APP_LBL}"  # app config info, scripts, ML models, etc.
 SRV_PATH="/srv/${APP_LBL}"  # application resources for serving endpoint
@@ -80,16 +77,12 @@ pip install -r ${TMP_PATH}/${REPO_LBL}/requirements.txt
 echo "Downloading model, hang on..."
 
 wget -O model.tar.gz ${MODEL_WGET}
-# wget -O embeddings.ann ${RECOMM_WGET}
-# wget -O id2url.pkl ${IDX2URL_WGET}
-# wget -O pca256.pkl ${PCA256_WGET}
 
 tar -xzf model.tar.gz -C ${ETC_PATH}/resources/efficient_net_b3_v2/1
 rm model.tar.gz
 
-# mv embeddings.ann ${ETC_PATH}/resources
-cp idx2url.pkl ${ETC_PATH}/resources
-cp pca256.pkl ${ETC_PATH}/resources
+mv idx2url.pkl ${ETC_PATH}/resources
+mv pca256.pkl ${ETC_PATH}/resources
 
 echo "Setting up ownership..."  # makes www-data (how nginx is run) owner + group for all data etc.
 chown -R www-data:www-data ${ETC_PATH}
