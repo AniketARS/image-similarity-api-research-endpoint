@@ -35,15 +35,20 @@ K_MAX = 500  # maximum number of neighbors (even if submitted argument is larger
 @app.route('/api/v1/similar-images', methods=['GET'])
 def get_neighbors_by_name():
     """Returns the Images based on the similarity with the given query image."""
-    args = parse_args()
+    args = parse_args(src='commons')
     return get_neighbors(args)
 
 @app.route('/api/v1/similar-images-url', methods=['POST'])
 def get_neighbors_by_url():
     """Returns the Images based on the similarity with the given query url."""
-    args = parse_args(for_name=False)
+    args = parse_args(src='url')
     return get_neighbors(args)
 
+@app.route('/api/v1/similar-images-bytes', methods=['POST'])
+def get_neighbors_by_bytes():
+    """Returns the Images based on the similarity with the given query bytes of image."""
+    args = parse_args(src='bytes')
+    return get_neighbors(args)
 
 def get_neighbors(args):
     if 'error' in args:
@@ -64,7 +69,7 @@ def get_neighbors(args):
         return jsonify(results)
 
 
-def parse_args(for_name=True):
+def parse_args(src='commons'):
     # number of neighbors
     k_default = 10  # default number of neighbors
     k_min = 1
@@ -74,11 +79,18 @@ def parse_args(for_name=True):
         k = k_default
 
     # seed qid
-    image_name = request.args.get('image_name') if for_name else ''
-    url = generate_url(image_name) if for_name else request.get_json()['url']
+    image_name, url, data = None, None, None
+    if src == 'commons':
+        image_name = request.args.get('image_name')
+        url = generate_url(image_name)
+    elif src == 'url':
+        url = request.get_json()['url']
     print(url)
     try:
-        data = urllib.request.urlopen(url).read()
+        if src != 'bytes':
+            data = urllib.request.urlopen(url).read()
+        else:
+            data = request.files['image']
     except Exception:
         return {'error': "Error: URL({}) is not valid".format(url)}
 
@@ -109,7 +121,11 @@ def generate_url(image_name):
     return url
 
 def generate_image(byte_string):
-    image = Image.open(BytesIO(byte_string))
+    image = None
+    try:
+        image = Image.open(BytesIO(byte_string))
+    except Exception:
+        image = Image.open(byte_string)
     image = image.resize((224, 224), Image.ANTIALIAS)
     image = np.array(image)
     if len(image.shape) == 2:
