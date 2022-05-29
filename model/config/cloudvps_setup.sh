@@ -36,6 +36,8 @@ mkdir -p ${ETC_PATH}
 mkdir -p ${ETC_PATH}/resources
 mkdir -p ${ETC_PATH}/resources/efficient_net_b3_v2
 mkdir -p ${ETC_PATH}/resources/efficient_net_b3_v2/1
+mkdir -p ${ETC_PATH}/resources/open_nsfw
+mkdir -p ${ETC_PATH}/resources/open_nsfw/1
 mkdir -p ${LOG_PATH}
 mkdir -p ${LIB_PATH}
 
@@ -81,6 +83,9 @@ wget -O model.tar.gz ${MODEL_WGET}
 tar -xzf model.tar.gz -C ${ETC_PATH}/resources/efficient_net_b3_v2/1
 rm model.tar.gz
 
+tar -xzf open_nsfw.tar.gz -C ${ETC_PATH}/resources/open_nsfw/1
+rm open_nsfw.tar.gz
+
 mv idx2url.pkl ${ETC_PATH}/resources
 mv pca256.pkl ${ETC_PATH}/resources
 
@@ -102,12 +107,15 @@ fi
 ln -s /etc/nginx/sites-available/model /etc/nginx/sites-enabled/
 cp ${ETC_PATH}/model.service /etc/systemd/system/
 cp ${ETC_PATH}/tensorflow.service /etc/systemd/system/
+cp ${ETC_PATH}/opennsfw.service /etc/systemd/system/
 
 echo "Enabling and starting services..."
 systemctl enable model.service  # uwsgi starts when server starts up
 systemctl enable tensorflow.service # tensorflow serving server starts
+systemctl enable opennsfw.service # nsfw serving server starts
 systemctl daemon-reload  # refresh state
 
 systemctl restart model.service  # start up uwsgi
 systemctl restart tensorflow.service # start up tensorflow serving
+systemctl restart opennsfw.service # start up nsfw serving
 systemctl restart nginx  # start up nginx
