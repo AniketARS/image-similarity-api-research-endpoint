@@ -14,6 +14,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import hashlib
 import yaml
+from mtcnn.mtcnn import MTCNN
+import opennsfw2 as n2
 
 app = Flask(__name__)
 
@@ -31,6 +33,7 @@ ANNOY_INDEX = AnnoyIndex(256, 'angular')
 PCA256 = PCA(n_components=256)
 IDX_TO_URL = {}
 K_MAX = 500  # maximum number of neighbors (even if submitted argument is larger)
+FACE_DETECTOR = None
 
 @app.route('/api/v1/similar-images', methods=['GET'])
 def get_neighbors_by_name():
@@ -55,7 +58,15 @@ def get_neighbors(args):
         return jsonify({'Error': args['error']})
     else:
         image = generate_image(args['data'])
+        if image is None:
+            return jsonify({
+                "warning": "This input image seems to contain content that is not suitable for work."
+            })
         print("Generated Image")
+        if if_faces(image):
+            return jsonify({
+                "warning": "This input image seems to include faces. This model is not designed for face detection."
+            })
         embeds = generate_embeddings(image)
         print("Generated Embeddings")
         results = []
@@ -126,6 +137,8 @@ def generate_image(byte_string):
         image = Image.open(BytesIO(byte_string))
     except Exception:
         image = Image.open(byte_string)
+    if nsfw_check(image):
+        return None
     image = image.resize((224, 224), Image.ANTIALIAS)
     image = np.array(image)
     if len(image.shape) == 2:
@@ -148,9 +161,45 @@ def generate_embeddings(image):
     print("Applied PCA..")
     return embeds
 
+def nsfw_check(image):
+    image = n2.preprocess_image(image, n2.Preprocessing.SIMPLE)
+    headers = {"content-type": "application/json"}
+    payload = json.dumps({"signature_name": "serving_default", "instances": [image.tolist()]})
+    result = requests.post('http://localhost:8502/v1/models/open_nsfw:predict',
+                           data=payload, headers=headers)
+    preds = json.loads(result.content.decode('utf-8'))['predictions'][0]
+    return preds[-1] > 0.8
+
+def if_faces(image):
+    def calculate_area_1(face, w, h):
+        box = face['box']
+        area = box[-1] * box[-2]
+        aoi = (area / (w*h))*100
+        return aoi
+
+    def calculate_area_max(faces, w, h):
+        s_aoi, m_aoi = 0.0, 0.0
+        for face in faces:
+            t_aoi = calculate_area_1(face, w, h)
+            m_aoi = m_aoi if m_aoi > t_aoi else t_aoi
+            s_aoi += t_aoi
+        return m_aoi, s_aoi
+    print(type(image))
+    image = image*255.0
+    faces = FACE_DETECTOR.detect_faces(image)
+
+    if len(faces) == 1:
+        face_aoi = calculate_area_1(faces[0], 224.0, 224.0)
+        return True if face_aoi >= 2.5 else False
+    elif len(faces) > 1:
+        max_aoi, sum_aoi = calculate_area_max(faces, 224.0, 224.0)
+        return True if max_aoi > 3.0 or sum_aoi > 15.0 else False
+    return False
+
 def load_similarity_index():
     global IDX_TO_URL
     global PCA256
+    global FACE_DETECTOR
     index_fp = os.path.join('/', 'extrastorage', 'data', 'tree.cnn')
     pca256_fp = os.path.join(__dir__, 'resources', 'pca256.pkl')
     idxmap_fp = os.path.join(__dir__, 'resources', 'idx2url.pkl')
@@ -163,6 +212,8 @@ def load_similarity_index():
     with open(idxmap_fp, 'rb') as fin:
         IDX_TO_URL = pickle.load(fin)
     print("Loaded IDX_TO_URL")
+    FACE_DETECTOR = MTCNN()
+    print("Loaded Face Detector")
 
     print("{0} IDs in nearset neighbor index.".format(ANNOY_INDEX.get_n_items()))
 
