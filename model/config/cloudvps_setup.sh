@@ -83,7 +83,7 @@ wget -O model.tar.gz ${MODEL_WGET}
 tar -xzf model.tar.gz -C ${ETC_PATH}/resources/efficient_net_b3_v2/1
 rm model.tar.gz
 
-tar -xzf open_nsfw.tar.gz -C ${ETC_PATH}/resources/open_nsfw/1
+tar -xzf open_nsfw.tar.gz -C ${ETC_PATH}/resources/
 rm open_nsfw.tar.gz
 
 mv idx2url.pkl ${ETC_PATH}/resources
