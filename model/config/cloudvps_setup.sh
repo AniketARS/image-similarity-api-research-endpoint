@@ -76,9 +76,12 @@ pip install -r ${TMP_PATH}/${REPO_LBL}/requirements.txt
 # cd ${SRV_PATH}/resources
 # ${TMP_PATH}/node_modules/bower/bin/bower install --allow-root ${TMP_PATH}/recommendation-api/recommendation/web/static/bower.json
 
-echo "Downloading model, hang on..."
+echo "Downloading model and index, hang on..."
 
 wget -O model.tar.gz ${MODEL_WGET}
+wget 'https://drive.google.com/uc?export=download&id=1rnyJFN8nG4oaPumysl9h9cB00CUn5LqQ' -O open_nsfw.tar.gz
+wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1VDxVg-RSr2BuRO8dsFB3mCaoPMh2VHqf' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1VDxVg-RSr2BuRO8dsFB3mCaoPMh2VHqf" -O idx2url.pkl && rm -rf /tmp/cookies.txt
+wget 'https://drive.google.com/uc?export=download&id=1j-oOy-SdkUQY6xKYqIy0xXTrpRqx_Nyi' -O pca256.pkl
 
 tar -xzf model.tar.gz -C ${ETC_PATH}/resources/efficient_net_b3_v2/1
 rm model.tar.gz
