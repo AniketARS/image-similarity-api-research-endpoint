@@ -15,7 +15,6 @@ from flask_cors import CORS
 import hashlib
 import yaml
 import opennsfw2 as n2
-import helpers as h
 import tensorflow as tf
 import cv2
 
