@@ -194,7 +194,7 @@ def if_faces(resp):
     return False
 
 def mtcnn_fun(img, min_size, factor, thresholds):
-    with open(os.path.join(os.curdir, 'resources', 'mtcnn.pb'), 'rb') as f:
+    with open(os.path.join(__dir__, 'resources', 'mtcnn.pb'), 'rb') as f:
         graph_def = tf.compat.v1.GraphDef.FromString(f.read())
 
     with tf.device('/cpu:0'):
