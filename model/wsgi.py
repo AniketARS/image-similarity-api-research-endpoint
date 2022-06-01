@@ -14,8 +14,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import hashlib
 import yaml
-from mtcnn.mtcnn import MTCNN
 import opennsfw2 as n2
+import helpers as h
 
 app = Flask(__name__)
 
@@ -33,7 +33,6 @@ ANNOY_INDEX = AnnoyIndex(256, 'angular')
 PCA256 = PCA(n_components=256)
 IDX_TO_URL = {}
 K_MAX = 500  # maximum number of neighbors (even if submitted argument is larger)
-FACE_DETECTOR = None
 
 @app.route('/api/v1/similar-images', methods=['GET'])
 def get_neighbors_by_name():
@@ -63,7 +62,7 @@ def get_neighbors(args):
                 "warning": "This input image seems to contain content that is not suitable for work."
             })
         print("Generated Image")
-        if if_faces(image):
+        if if_faces(args['data']):
             return jsonify({
                 "warning": "This input image seems to include faces. This model is not designed for face detection."
             })
@@ -170,24 +169,21 @@ def nsfw_check(image):
     preds = json.loads(result.content.decode('utf-8'))['predictions'][0]
     return preds[-1] > 0.8
 
-def if_faces(image):
+def if_faces(resp):
     def calculate_area_1(face, w, h):
-        box = face['box']
+        box = face['face']
         area = box[-1] * box[-2]
         aoi = (area / (w*h))*100
         return aoi
 
     def calculate_area_max(faces, w, h):
         s_aoi, m_aoi = 0.0, 0.0
-        for face in faces:
-            t_aoi = calculate_area_1(face, w, h)
+        for box in faces:
+            t_aoi = calculate_area_1(box, w, h)
             m_aoi = m_aoi if m_aoi > t_aoi else t_aoi
             s_aoi += t_aoi
         return m_aoi, s_aoi
-    print(type(image))
-    image = image*255.0
-    faces = FACE_DETECTOR.detect_faces(image)
-
+    faces = h.detect(resp)
     if len(faces) == 1:
         face_aoi = calculate_area_1(faces[0], 224.0, 224.0)
         return True if face_aoi >= 2.5 else False
@@ -199,10 +195,13 @@ def if_faces(image):
 def load_similarity_index():
     global IDX_TO_URL
     global PCA256
-    global FACE_DETECTOR
-    index_fp = os.path.join('/', 'extrastorage', 'data', 'tree.cnn')
-    pca256_fp = os.path.join(__dir__, 'resources', 'pca256.pkl')
-    idxmap_fp = os.path.join(__dir__, 'resources', 'idx2url.pkl')
+    # index_fp = os.path.join('/', 'extrastorage', 'data', 'tree.cnn')
+    # pca256_fp = os.path.join(__dir__, 'resources', 'pca256.pkl')
+    # idxmap_fp = os.path.join(__dir__, 'resources', 'idx2url.pkl')
+
+    index_fp = os.path.join('/', 'home', 'aniket', 'extrastorage', 'data', 'tree.cnn')
+    pca256_fp = os.path.join(os.curdir, 'resources', 'pca256.pkl')
+    idxmap_fp = os.path.join(os.curdir, 'resources', 'idx2url.pkl')
 
     print("Using pre-built ANNOY index")
     ANNOY_INDEX.load(index_fp)
@@ -212,8 +211,6 @@ def load_similarity_index():
     with open(idxmap_fp, 'rb') as fin:
         IDX_TO_URL = pickle.load(fin)
     print("Loaded IDX_TO_URL")
-    FACE_DETECTOR = MTCNN()
-    print("Loaded Face Detector")
 
     print("{0} IDs in nearset neighbor index.".format(ANNOY_INDEX.get_n_items()))
 
