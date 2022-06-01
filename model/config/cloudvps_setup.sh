@@ -6,6 +6,9 @@ APP_LBL='api-endpoint'  # descriptive label for endpoint-related directories
 REPO_LBL='similaritymodel'  # directory where repo code will go
 GIT_CLONE_HTTPS='https://github.com/AniketARS/image-similarity-api-research-endpoint'  # for `git clone`
 MODEL_WGET='https://tfhub.dev/google/imagenet/efficientnet_v2_imagenet21k_ft1k_b3/feature_vector/2?tf-hub-format=compressed'
+PCA256_WGET='https://drive.google.com/uc?export=download&id=1j-oOy-SdkUQY6xKYqIy0xXTrpRqx_Nyi'
+OPENNSFW_WGET='https://drive.google.com/uc?export=download&id=1rnyJFN8nG4oaPumysl9h9cB00CUn5LqQ'
+MTCNN_WGET='https://drive.google.com/uc?export=download&id=1Zqr3WksArXthgJqFV0FIbWdqvttQs_9e'
 
 ETC_PATH="/etc/${APP_LBL}"  # app config info, scripts, ML models, etc.
 SRV_PATH="/srv/${APP_LBL}"  # application resources for serving endpoint
@@ -26,6 +29,8 @@ apt-get install -y python3-dev  # necessary for fasttext
 apt-get install -y uwsgi
 apt-get install -y uwsgi-plugin-python3
 apt-get install -y tensorflow-model-server
+apt-get install -y python3-opencv
+apt-get install -y libgl1
 # potentially add: apt-get install -y git python3 libpython3.7 python3-setuptools
 
 echo "Setting up paths..."
@@ -79,9 +84,10 @@ pip install -r ${TMP_PATH}/${REPO_LBL}/requirements.txt
 echo "Downloading model and index, hang on..."
 
 wget -O model.tar.gz ${MODEL_WGET}
-wget 'https://drive.google.com/uc?export=download&id=1rnyJFN8nG4oaPumysl9h9cB00CUn5LqQ' -O open_nsfw.tar.gz
+wget -O open_nsfw.tar.gz ${OPENNSFW_WGET}
 wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1VDxVg-RSr2BuRO8dsFB3mCaoPMh2VHqf' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1VDxVg-RSr2BuRO8dsFB3mCaoPMh2VHqf" -O idx2url.pkl && rm -rf /tmp/cookies.txt
-wget 'https://drive.google.com/uc?export=download&id=1j-oOy-SdkUQY6xKYqIy0xXTrpRqx_Nyi' -O pca256.pkl
+wget -O pca256.pkl ${PCA256_WGET}
+wget -O mtcnn.pb ${MTCNN_WGET}
 
 tar -xzf model.tar.gz -C ${ETC_PATH}/resources/efficient_net_b3_v2/1
 rm model.tar.gz
@@ -91,6 +97,7 @@ rm open_nsfw.tar.gz
 
 mv idx2url.pkl ${ETC_PATH}/resources
 mv pca256.pkl ${ETC_PATH}/resources
+mv mtcnn.pb ${ETC_PATH}/resources
 
 echo "Setting up ownership..."  # makes www-data (how nginx is run) owner + group for all data etc.
 chown -R www-data:www-data ${ETC_PATH}
