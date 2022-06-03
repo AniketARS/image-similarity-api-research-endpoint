@@ -16,7 +16,6 @@ import hashlib
 import yaml
 import opennsfw2 as n2
 import tensorflow as tf
-import cv2
 
 app = Flask(__name__)
 
@@ -63,7 +62,7 @@ def get_neighbors(args):
                 "warning": "This input image seems to contain content that is not suitable for work."
             })
         print("Generated Image")
-        if if_faces(args['data']):
+        if if_faces(image*255.0):
             return jsonify({
                 "warning": "This input image seems to include faces. This model is not designed for face detection."
             })
@@ -139,7 +138,7 @@ def generate_image(byte_string):
         image = Image.open(byte_string)
     if nsfw_check(image):
         return None
-    image = image.resize((224, 224), Image.ANTIALIAS)
+    image = image.resize((224, 224), Image.BILINEAR)
     image = np.array(image)
     if len(image.shape) == 2:
         image = np.repeat(image[..., np.newaxis], 3, -1)
@@ -170,7 +169,7 @@ def nsfw_check(image):
     preds = json.loads(result.content.decode('utf-8'))['predictions'][0]
     return preds[-1] > 0.8
 
-def if_faces(resp):
+def if_faces(image):
     def calculate_area_1(face, w, h):
         box = face['face']
         area = box[-1] * box[-2]
@@ -184,7 +183,7 @@ def if_faces(resp):
             m_aoi = m_aoi if m_aoi > t_aoi else t_aoi
             s_aoi += t_aoi
         return m_aoi, s_aoi
-    faces = detect(resp)
+    faces = detect(image)
     if len(faces) == 1:
         face_aoi = calculate_area_1(faces[0], 224.0, 224.0)
         return True if face_aoi >= 2.5 else False
@@ -221,10 +220,7 @@ mtcnn_fun = tf.compat.v1.wrap_function(mtcnn_fun, [
     tf.TensorSpec(shape=[3], dtype=tf.float32)
 ])
 
-def detect(resp):
-    image = np.asarray(bytearray(resp), dtype="uint8")
-    image = cv2.imdecode(image, cv2.IMREAD_COLOR)
-    image = cv2.resize(image, (224, 224))
+def detect(image):
     bbox, scores, landmarks = mtcnn_fun(image, 40, 0.7, [0.6, 0.7, 0.8])
     bbox, scores, landmarks = bbox.numpy(), scores.numpy(), landmarks.numpy()
     res = []
