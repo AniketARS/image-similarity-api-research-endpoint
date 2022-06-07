@@ -62,10 +62,6 @@ def get_neighbors(args):
                 "warning": "This input image seems to contain content that is not suitable for work."
             })
         print("Generated Image")
-        if if_faces(image*255.0):
-            return jsonify({
-                "warning": "This input image seems to include faces. This model is not designed for face detection."
-            })
         embeds = generate_embeddings(image)
         print("Generated Embeddings")
         results = []
