@@ -15,7 +15,7 @@ from flask_cors import CORS
 import hashlib
 import yaml
 import opennsfw2 as n2
-import tensorflow as tf
+from Detector import Detector
 
 app = Flask(__name__)
 
@@ -33,6 +33,7 @@ ANNOY_INDEX = AnnoyIndex(256, 'angular')
 PCA256 = PCA(n_components=256)
 IDX_TO_URL = {}
 K_MAX = 500  # maximum number of neighbors (even if submitted argument is larger)
+FACE_DETECTOR = None
 
 @app.route('/api/v1/similar-images', methods=['GET'])
 def get_neighbors_by_name():
@@ -60,6 +61,11 @@ def get_neighbors(args):
         if image is None:
             return jsonify({
                 "warning": "This input image seems to contain content that is not suitable for work."
+            })
+        if if_faces(image*255.0):
+            return jsonify({
+                "warning": "This input image seems to include faces. This model is not designed to detect face "
+                           "similarity. "
             })
         print("Generated Image")
         embeds = generate_embeddings(image)
@@ -179,7 +185,7 @@ def if_faces(image):
             m_aoi = m_aoi if m_aoi > t_aoi else t_aoi
             s_aoi += t_aoi
         return m_aoi, s_aoi
-    faces = detect(image)
+    faces = FACE_DETECTOR.detect(image)
     if len(faces) == 1:
         face_aoi = calculate_area_1(faces[0], 224.0, 224.0)
         return True if face_aoi >= 2.5 else False
@@ -188,47 +194,9 @@ def if_faces(image):
         return True if max_aoi > 3.0 or sum_aoi > 15.0 else False
     return False
 
-def mtcnn_fun(img, min_size, factor, thresholds):
-    with open(os.path.join(__dir__, 'resources', 'mtcnn.pb'), 'rb') as f:
-        graph_def = tf.compat.v1.GraphDef.FromString(f.read())
-
-    with tf.device('/cpu:0'):
-        prob, landmarks, box = tf.compat.v1.import_graph_def(graph_def,
-            input_map={
-                'input:0': img,
-                'min_size:0': min_size,
-                'thresholds:0': thresholds,
-                'factor:0': factor
-            },
-            return_elements=[
-                'prob:0',
-                'landmarks:0',
-                'box:0']
-            , name='')
-    print(box, prob, landmarks)
-    return box, prob, landmarks
-
-# wrap graph function as a callable function
-mtcnn_fun = tf.compat.v1.wrap_function(mtcnn_fun, [
-    tf.TensorSpec(shape=[None, None, 3], dtype=tf.float32),
-    tf.TensorSpec(shape=[], dtype=tf.float32),
-    tf.TensorSpec(shape=[], dtype=tf.float32),
-    tf.TensorSpec(shape=[3], dtype=tf.float32)
-])
-
-def detect(image):
-    bbox, scores, landmarks = mtcnn_fun(image, 40, 0.7, [0.6, 0.7, 0.8])
-    bbox, scores, landmarks = bbox.numpy(), scores.numpy(), landmarks.numpy()
-    res = []
-    for box in bbox:
-        d = dict()
-        d['face'] = [box[1], box[0], box[3]-box[1], box[2]-box[0]]
-        res.append(d)
-    return res
-
 def load_similarity_index():
     global IDX_TO_URL
-    global PCA256
+    global PCA256, FACE_DETECTOR
     index_fp = os.path.join('/', 'extrastorage', 'data', 'tree.cnn')
     pca256_fp = os.path.join(__dir__, 'resources', 'pca256.pkl')
     idxmap_fp = os.path.join(__dir__, 'resources', 'idx2url.pkl')
@@ -241,6 +209,8 @@ def load_similarity_index():
     with open(idxmap_fp, 'rb') as fin:
         IDX_TO_URL = pickle.load(fin)
     print("Loaded IDX_TO_URL")
+    FACE_DETECTOR = Detector()
+    print("Loaded Face Detector")
 
     print("{0} IDs in nearset neighbor index.".format(ANNOY_INDEX.get_n_items()))
 
