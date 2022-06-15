@@ -1,0 +1,15 @@
+[Unit]
+Description=MTCNN - pNet
+After=syslog.target
+
+[Service]
+ExecStart=tensorflow_model_server --rest_api_port=8503 --model_name=pnet --model_base_path=/etc/api-endpoint/resources/pnet
+User=www-data
+Group=www-data
+Restart=always
+StandardError=syslog
+NotifyAccess=all
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
