@@ -10,6 +10,7 @@ Restart=always
 StandardError=syslog
 NotifyAccess=all
 KillSignal=SIGTERM
+chdir=/etc/api-endpoint
 
 [Install]
 WantedBy=multi-user.target
