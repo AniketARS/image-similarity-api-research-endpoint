@@ -8,7 +8,7 @@ GIT_CLONE_HTTPS='https://github.com/AniketARS/image-similarity-api-research-endp
 MODEL_WGET='https://tfhub.dev/google/imagenet/efficientnet_v2_imagenet21k_ft1k_b3/feature_vector/2?tf-hub-format=compressed'
 PCA256_WGET='https://drive.google.com/uc?export=download&id=1j-oOy-SdkUQY6xKYqIy0xXTrpRqx_Nyi'
 OPENNSFW_WGET='https://drive.google.com/uc?export=download&id=1rnyJFN8nG4oaPumysl9h9cB00CUn5LqQ'
-MTCNN_WGET='https://drive.google.com/uc?export=download&id=1Zqr3WksArXthgJqFV0FIbWdqvttQs_9e'
+MTCNN_WGET='https://drive.google.com/uc?export=download&id=1-I2HhPverIjcP-vKbPVJmrTZaGfdkDEN'
 
 ETC_PATH="/etc/${APP_LBL}"  # app config info, scripts, ML models, etc.
 SRV_PATH="/srv/${APP_LBL}"  # application resources for serving endpoint
@@ -38,11 +38,21 @@ rm -rf ${TMP_PATH}
 mkdir -p ${TMP_PATH}
 mkdir -p ${SRV_PATH}/sock
 mkdir -p ${ETC_PATH}
+# Image Features Generator
 mkdir -p ${ETC_PATH}/resources
 mkdir -p ${ETC_PATH}/resources/efficient_net_b3_v2
+# NSFW Classifier
 mkdir -p ${ETC_PATH}/resources/efficient_net_b3_v2/1
 mkdir -p ${ETC_PATH}/resources/open_nsfw
+# MTCNN Face Detector
 mkdir -p ${ETC_PATH}/resources/open_nsfw/1
+mkdir -p ${ETC_PATH}/resources/rnet
+mkdir -p ${ETC_PATH}/resources/rnet/1
+mkdir -p ${ETC_PATH}/resources/pnet
+mkdir -p ${ETC_PATH}/resources/pnet/1
+mkdir -p ${ETC_PATH}/resources/onet
+mkdir -p ${ETC_PATH}/resources/onet/1
+
 mkdir -p ${LOG_PATH}
 mkdir -p ${LIB_PATH}
 
@@ -84,20 +94,22 @@ pip install -r ${TMP_PATH}/${REPO_LBL}/requirements.txt
 echo "Downloading model and index, hang on..."
 
 wget -O model.tar.gz ${MODEL_WGET}
-wget -O open_nsfw.tar.gz ${OPENNSFW_WGET}
+wget -O open_nsfw.tar.xz ${OPENNSFW_WGET}
+wget -O mtcnn.tar.xz ${MTCNN_WGET}
 wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1VDxVg-RSr2BuRO8dsFB3mCaoPMh2VHqf' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1VDxVg-RSr2BuRO8dsFB3mCaoPMh2VHqf" -O idx2url.pkl && rm -rf /tmp/cookies.txt
 wget -O pca256.pkl ${PCA256_WGET}
-wget -O mtcnn.pb ${MTCNN_WGET}
 
 tar -xzf model.tar.gz -C ${ETC_PATH}/resources/efficient_net_b3_v2/1
 rm model.tar.gz
 
-tar -xf open_nsfw.tar.gz -C ${ETC_PATH}/resources/
-rm open_nsfw.tar.gz
+tar -xf open_nsfw.tar.xz -C ${ETC_PATH}/resources/
+rm open_nsfw.tar.xz
+
+tar -xf mtcnn.tar.xz -C ${ETC_PATH}/resources/
+rm mtcnn.tar.xz
 
 mv idx2url.pkl ${ETC_PATH}/resources
 mv pca256.pkl ${ETC_PATH}/resources
-mv mtcnn.pb ${ETC_PATH}/resources
 
 echo "Setting up ownership..."  # makes www-data (how nginx is run) owner + group for all data etc.
 chown -R www-data:www-data ${ETC_PATH}
@@ -109,6 +121,8 @@ echo "Copying configuration files..."
 cp ${TMP_PATH}/${REPO_LBL}/model/config/* ${ETC_PATH}
 # TODO: fix this to be more elegant (one directory or not necessary because run as package)
 cp ${TMP_PATH}/${REPO_LBL}/model/wsgi.py ${ETC_PATH}
+#cp ${TMP_PATH}/${REPO_LBL}/model/__init__.py ${ETC_PATH}
+#cp ${TMP_PATH}/${REPO_LBL}/model/Detector.py ${ETC_PATH}
 cp ${TMP_PATH}/${REPO_LBL}/model/flask_config.yaml ${ETC_PATH}
 cp ${ETC_PATH}/model.nginx /etc/nginx/sites-available/model
 if [[ -f "/etc/nginx/sites-enabled/model" ]]; then
@@ -118,14 +132,23 @@ ln -s /etc/nginx/sites-available/model /etc/nginx/sites-enabled/
 cp ${ETC_PATH}/model.service /etc/systemd/system/
 cp ${ETC_PATH}/tensorflow.service /etc/systemd/system/
 cp ${ETC_PATH}/opennsfw.service /etc/systemd/system/
+cp ${ETC_PATH}/onet.service /etc/systemd/system/
+cp ${ETC_PATH}/pnet.service /etc/systemd/system/
+cp ${ETC_PATH}/rnet.service /etc/systemd/system/
 
 echo "Enabling and starting services..."
 systemctl enable model.service  # uwsgi starts when server starts up
 systemctl enable tensorflow.service # tensorflow serving server starts
 systemctl enable opennsfw.service # nsfw serving server starts
+systemctl enable onet.service # mtcnn_onet serving server starts
+systemctl enable pnet.service # mtcnn_pnet serving server starts
+systemctl enable rnet.service # mtcnn_rnet serving server starts
 systemctl daemon-reload  # refresh state
 
 systemctl restart model.service  # start up uwsgi
 systemctl restart tensorflow.service # start up tensorflow serving
 systemctl restart opennsfw.service # start up nsfw serving
+systemctl restart onet.service # start up mtcnn_onet serving
+systemctl restart pnet.service # start up mtcnn_pnet serving
+systemctl restart rnet.service # start up mtcnn_rnet serving
 systemctl restart nginx  # start up nginx
