@@ -46,12 +46,6 @@ mkdir -p ${ETC_PATH}/resources/efficient_net_b3_v2/1
 mkdir -p ${ETC_PATH}/resources/open_nsfw
 # MTCNN Face Detector
 mkdir -p ${ETC_PATH}/resources/open_nsfw/1
-mkdir -p ${ETC_PATH}/resources/rnet
-mkdir -p ${ETC_PATH}/resources/rnet/1
-mkdir -p ${ETC_PATH}/resources/pnet
-mkdir -p ${ETC_PATH}/resources/pnet/1
-mkdir -p ${ETC_PATH}/resources/onet
-mkdir -p ${ETC_PATH}/resources/onet/1
 
 mkdir -p ${LOG_PATH}
 mkdir -p ${LIB_PATH}
