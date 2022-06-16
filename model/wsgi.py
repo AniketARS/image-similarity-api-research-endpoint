@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+import sys
 
 from io import BytesIO
 
@@ -20,6 +21,7 @@ from Detector import Detector
 app = Flask(__name__)
 
 __dir__ = os.path.dirname(__file__)
+sys.path.append(__dir__)
 
 # load in app user-agent or any other app config
 app.config.update(
